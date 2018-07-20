@@ -1,5 +1,8 @@
 <template>
+  <div>
     <h1>Face-api.js</h1>
+    <p v-if="loadingState">{{ loadingState }}</p>
+  </div>
 </template>
 
 <script>
@@ -11,12 +14,13 @@ export default {
   },
   data: () => {
     return {
-      modelsUrl: '/models',
+      modelsUrl: '/models/face_recognition_model-weights_manifest.json',
       classes: ['luke', 'not-luke'],
-      trainDescriptorsByClass: [ ]
+      trainDescriptorsByClass: [ ],
+      loadingState: null
     }
   },
-  method: {
+  methods: {
     getFaceImageUri: function (className, idx) {
       return `img/classes/${className}/${className}${idx}.png`
     },
@@ -44,8 +48,16 @@ export default {
     }
   },
   async mounted () {
-    faceapi.loadModels(this.modelsUrl)
-    this.trainDescriptorsByClass = await this.initTrainDescriptorsByClass(faceapi.recognitionNet)
+    try {
+      this.loadingState = 'Loading Models....'
+      await faceapi.loadFaceRecognitionModel(this.modelsUrl)
+      this.loadingState = 'Training....'
+      this.trainDescriptorsByClass = await this.initTrainDescriptorsByClass(faceapi.recognitionNet)
+      this.loadingState = 'Loading Complete'
+    } catch (error) {
+      this.loadingState = 'Error whilst loading....'
+      console.error(error)
+    }
   }
 }
 </script>
