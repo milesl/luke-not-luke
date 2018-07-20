@@ -3,6 +3,7 @@
     <h1>Face-api.js</h1>
     <p v-if="loadingState">{{ loadingState }}</p>
     <input type="file" @change="onImageChange($event)" />
+    <p>{{ bestMatch.className }}</p>
     <img :src="image" />
     <button @click="removeImage()">Remove</button>
   </div>
@@ -21,7 +22,8 @@ export default {
       classes: ['luke', 'not-luke'],
       trainDescriptorsByClass: [ ],
       loadingState: null,
-      image: null
+      image: null,
+      bestMatch: null
     }
   },
   methods: {
@@ -72,15 +74,15 @@ export default {
       if (!files.length) {
         return
       }
+      this.loadingState = 'Calculating match...'
       var reader = new FileReader()
       reader.onload = async (e) => {
         this.image = e.target.result
         var img = document.createElement('img')
         img.src = this.image
-        const descriptor = await faceapi.computeFaceDescriptor(img)
-        console.log(descriptor)
-        const bestMatch = this.getBestMatch(this.trainDescriptorsByClass, descriptor)
-        console.log(bestMatch)
+        var descriptor = await faceapi.computeFaceDescriptor(img)
+        this.bestMatch = this.getBestMatch(this.trainDescriptorsByClass, descriptor)
+        this.loadingState = null
       }
       reader.readAsDataURL(files[0])
     },
