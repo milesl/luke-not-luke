@@ -2,6 +2,9 @@
   <div>
     <h1>Face-api.js</h1>
     <p v-if="loadingState">{{ loadingState }}</p>
+    <input type="file" @change="onImageChange($event)" />
+    <img :src="image" />
+    <button @click="removeImage()">Remove</button>
   </div>
 </template>
 
@@ -17,7 +20,8 @@ export default {
       modelsUrl: '/models/face_recognition_model-weights_manifest.json',
       classes: ['luke', 'not-luke'],
       trainDescriptorsByClass: [ ],
-      loadingState: null
+      loadingState: null,
+      image: null
     }
   },
   methods: {
@@ -45,6 +49,43 @@ export default {
           }
         }
       ))
+    },
+    getBestMatch: function getBestMatch (descriptorsByClass, queryDescriptor) {
+      function computeMeanDistance (descriptorsOfClass) {
+        return faceapi.round(
+          descriptorsOfClass
+            .map(d => faceapi.euclideanDistance(d, queryDescriptor))
+            .reduce((d1, d2) => d1 + d2, 0) / (descriptorsOfClass.length || 1)
+        )
+      }
+      return descriptorsByClass
+        .map(
+          ({ descriptors, className }) => ({
+            distance: computeMeanDistance(descriptors),
+            className
+          })
+        )
+        .reduce((best, curr) => best.distance < curr.distance ? best : curr)
+    },
+    onImageChange: function (e) {
+      var files = e.target.files || e.dataTransfer.files
+      if (!files.length) {
+        return
+      }
+      var reader = new FileReader()
+      reader.onload = async (e) => {
+        this.image = e.target.result
+        var img = document.createElement('img')
+        img.src = this.image
+        const descriptor = await faceapi.computeFaceDescriptor(img)
+        console.log(descriptor)
+        const bestMatch = this.getBestMatch(this.trainDescriptorsByClass, descriptor)
+        console.log(bestMatch)
+      }
+      reader.readAsDataURL(files[0])
+    },
+    removeImage: function () {
+      this.image = null
     }
   },
   async mounted () {
