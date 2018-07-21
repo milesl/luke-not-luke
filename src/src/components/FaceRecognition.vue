@@ -1,12 +1,33 @@
 <template>
-  <div class="face-recognition">
-    <h1 class="face-recognition__header">Luke-Not-Luke</h1>
-    <p class="face-recognition__loading" v-if="loadingState">{{ loadingState }}</p>
-    <input class="face-recognition__image-upload" type="file" @change="onImageChange($event)" />
-    <p class="face-recognition__match">{{ bestMatch.className }}<span>{{ bestMatch.distance }}</span></p>
-    <img class="face-recognition__image" :src="image" />
-    <button class="face-recognition__remove-image" @click="removeImage()">Remove</button>
-  </div>
+  <section class="section">
+    <div class="container">
+      <h1 class="title" v-if="bestMatch" :class="getClass(bestMatch.distance)">{{ bestMatch.className }} <span class="is-size-6">{{ bestMatch.distance }}</span></h1>
+      <h2 class="subtitle" v-if="loadingState">{{ loadingState }}</h2>
+      <div class="columns">
+        <div class="column is-half">
+          <div class="file">
+            <label class="file-label">
+              <input class="file-input" type="file" @change="onImageChange($event)">
+              <span class="file-cta">
+                <span class="file-icon">
+                  <i class="fas fa-upload"></i>
+                </span>
+                <span class="file-label">
+                  Choose a image...
+                </span>
+              </span>
+            </label>
+            <button class="button" @click="removeImage()">Remove</button>
+          </div>
+        </div>
+      </div>
+      <div class="columns is-centered">
+        <div class="column">
+          <img :src="image" />
+        </div>
+      </div>
+    </div>
+  </section>
 </template>
 
 <script>
@@ -54,18 +75,18 @@ export default {
         }
       ))
     },
+    computeMeanDistance: function (descriptorsOfClass, queryDescriptor) {
+      return faceapi.round(
+        descriptorsOfClass
+          .map(d => faceapi.euclideanDistance(d, queryDescriptor))
+          .reduce((d1, d2) => d1 + d2, 0) / (descriptorsOfClass.length || 1)
+      )
+    },
     getBestMatch: function getBestMatch (descriptorsByClass, queryDescriptor) {
-      function computeMeanDistance (descriptorsOfClass) {
-        return faceapi.round(
-          descriptorsOfClass
-            .map(d => faceapi.euclideanDistance(d, queryDescriptor))
-            .reduce((d1, d2) => d1 + d2, 0) / (descriptorsOfClass.length || 1)
-        )
-      }
       return descriptorsByClass
         .map(
           ({ descriptors, className }) => ({
-            distance: computeMeanDistance(descriptors),
+            distance: this.computeMeanDistance(descriptors, queryDescriptor),
             className
           })
         )
@@ -79,7 +100,11 @@ export default {
       this.loadingState = 'Calculating match...'
       var reader = new FileReader()
       reader.onload = async (e) => {
-        this.resizedataURL(e.target.result).then(async (result) => {
+        var base64Img = e.target.result
+        if (!base64Img) {
+          return
+        }
+        this.resizedataURL(base64Img).then(async (result) => {
           this.image = result
           var img = document.createElement('img')
           img.src = this.image
@@ -93,14 +118,13 @@ export default {
     resizedataURL: function (base64Img, callback) {
       return new Promise((resolve, reject) => {
         var img = document.createElement('img')
-        img.onload = function () {
-          var width = img.width / 5
-          var height = img.height / 5
+        img.onload = () => {
+          var dimensions = this.calculateAspectRatioFit(img.width, img.height, 1000, 1000)
           var canvas = document.createElement('canvas')
           var ctx = canvas.getContext('2d')
-          canvas.width = width
-          canvas.height = height
-          ctx.drawImage(this, 0, 0, width, height)
+          canvas.width = dimensions.width
+          canvas.height = dimensions.height
+          ctx.drawImage(img, 0, 0, dimensions.width, dimensions.height)
           var dataUrl = canvas.toDataURL()
           resolve(dataUrl)
         }
@@ -109,6 +133,24 @@ export default {
     },
     removeImage: function () {
       this.image = null
+      this.bestMatch = null
+      this.loadingState = null
+    },
+    calculateAspectRatioFit: function (srcWidth, srcHeight, maxWidth, maxHeight) {
+      var ratio = Math.min(maxWidth / srcWidth, maxHeight / srcHeight)
+      return { width: srcWidth * ratio, height: srcHeight * ratio }
+    },
+    getClass: function (distance) {
+      switch (true) {
+        case distance <= 0.3:
+          return 'has-text-danger'
+        case distance <= 0.5:
+          return 'has-text-warning'
+        case distance <= 0.75:
+          return 'has-text-info'
+        case distance <= 1:
+          return 'has-text-success'
+      }
     }
   },
   async mounted () {
@@ -127,20 +169,5 @@ export default {
 </script>
 
 <style scoped lang="stylus">
-  .face-recognition
-    display block
-    .face-recognition__header
-      font-size 1em
-    .face-recognition__loading
-      font-size 0.8em
-    .face-recognition__match
-      font-size 1.2em
-      font-weight bold
-      span
-        font-size 0.7em
-        font-weight normal
-    .face-recognition__image
-      max-width 100%
-      height auto
 
 </style>
